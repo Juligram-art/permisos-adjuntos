@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light">
+  <title>Adjuntos · Entrada_permisos</title>
+  <link rel="stylesheet" href="styles.css?v=7">
+  <script src="core.js?v=7" defer></script>
+  <script src="supabase-config.js?v=7" defer></script>
+  <script src="cloud.js?v=7" defer></script>
+  <script src="app.js?v=7" defer></script>
+</head>
+<body>
+  <header class="topbar"><a class="brand" href="./"><span class="brand-mark" aria-hidden="true">a.</span>adjuntos<span class="brand-divider"></span><span class="brand-caption">Organización del servicio</span></a><span class="mode"><span></span>Consulta de permisos</span></header>
+  <main>
+    <section id="auth-panel" class="form-panel auth-panel">
+      <p class="eyebrow">ORGANIZACIÓN DEL SERVICIO</p><h1>Acceso de editores</h1>
+      <p class="subtitle">Entra con tu cuenta para registrar permisos y gestionar el servicio.</p>
+      <form id="login-form">
+        <label for="login-email">Correo electrónico</label><input id="login-email" type="email" autocomplete="username" required>
+        <label for="login-password">Contraseña</label><input id="login-password" type="password" autocomplete="current-password" required>
+        <button class="primary" type="submit">Entrar</button>
+      </form>
+      <p id="auth-message" role="status" class="hint">El administrador del servicio gestiona las cuentas y los perfiles.</p>
+      <button id="back-public" type="button" class="secondary">Volver a la consulta abierta</button>
+      <button id="auth-forget" type="button" class="secondary" hidden>Usar otra cuenta</button>
+    </section>
+    <div id="session-bar" class="session-bar" hidden><span id="session-label"></span><span id="sync-status" role="status"></span><button id="refresh-cloud" class="secondary" type="button">Actualizar datos</button><button id="editor-access" class="secondary" type="button" hidden>Acceso editores</button><button id="logout" class="secondary" type="button">Cerrar sesión</button></div>
+    <p id="cloud-message" class="error" role="alert" hidden></p>
+    <section id="empty-cloud" class="form-panel" hidden><h1>Todo listo para empezar</h1><p class="subtitle" id="empty-message"></p><button id="initialize-cloud" class="primary" type="button">Crear año inicial</button></section>
+    <div id="app-shell" hidden>
+    
+    <div class="app-toolbar" id="year-toolbar"><div><label for="year-select">Año de trabajo</label><select id="year-select"></select></div></div>
+    <nav class="view-nav" aria-label="Vistas"><button id="entry-tab" data-view="entry" type="button" aria-pressed="true">Entrada_permisos</button><button id="query-tab" data-view="query" type="button" aria-pressed="false">Permisos</button><button id="list-tab" data-view="list" type="button" aria-pressed="false">Listado</button><button id="settings-tab" data-view="settings" type="button" aria-pressed="false">Configuración</button></nav>
+    <p id="app-message" class="range-preview" role="status" hidden></p><p id="app-error" class="error" role="alert" hidden></p>
+    <p id="storage-warning" class="error" role="alert" hidden></p>
+    <div id="entry-view">
+    <div class="intro"><div><p class="eyebrow">GESTIÓN DE PERMISOS</p><h1>Entrada_permisos</h1><p class="subtitle">Selecciona un adjunto, elige el día y añade el motivo.</p></div><span class="step-tag">01 <span>/ Registro</span></span></div>
+    <div class="workspace">
+      <section class="form-panel" aria-labelledby="form-title">
+        <div class="panel-heading"><span class="icon" aria-hidden="true">＋</span><div><h2 id="form-title">Nuevo permiso</h2><p>Adjunto, fecha de inicio y motivo obligatorios.</p></div></div>
+        <form id="permission-form">
+          <div class="field"><label for="staff"><span class="number">1</span>Adjunto</label><select id="staff" name="staff" required><option value="">Selecciona un adjunto</option></select><p class="hint" id="staff-hint"></p></div>
+          <div class="field"><label for="date"><span class="number">2</span>Fecha de inicio</label><input id="date" name="date" type="date" required><label for="end-date" class="end-label">Fecha de fin (opcional)</label><input id="end-date" name="end-date" type="date"><p class="hint">Para un solo día, deja la fecha de fin vacía. El intervalo incluye el primer y el último día.</p><label class="weekend-option"><input id="include-weekends" type="checkbox" checked>Incluir sábados y domingos</label><p class="hint">Los festivos entre semana se incluyen; todavía no hay un calendario de festivos.</p><p id="range-preview" class="range-preview" aria-live="polite">Selecciona la fecha de inicio.</p></div>
+          <div class="field"><label for="reason"><span class="number">3</span>Motivo del permiso</label><select id="reason" name="reason" required><option value="">Selecciona un motivo</option></select><p class="hint">El motivo EN se muestra únicamente con su código.</p></div>
+          <p id="error" class="error" role="alert" hidden></p>
+          <p id="save-message" class="range-preview" role="status" hidden></p>
+          <div class="actions"><button class="primary" type="submit">Guardar permiso <span aria-hidden="true">→</span></button><button class="secondary" type="reset">Limpiar</button></div>
+        </form>
+      </section>
+      <aside>
+        <section class="summary" aria-labelledby="summary-title"><div class="summary-top"><p class="eyebrow">ANTES DE AÑADIR</p><span class="icon" aria-hidden="true">↗</span></div><h2 id="summary-title">Tu selección</h2><p class="summary-description">Comprueba los datos de un vistazo.</p><dl><div><dt>Adjunto</dt><dd id="summary-staff">Sin seleccionar</dd></div><div><dt>Fecha</dt><dd id="summary-date">Sin seleccionar</dd></div><div><dt>Motivo</dt><dd id="summary-reason">Sin seleccionar</dd></div></dl><div class="summary-footer"><span id="progress">0 de 3 campos completos</span><div class="progress-track" aria-hidden="true"><span id="progress-fill"></span></div></div></section>
+        <div class="note"><span aria-hidden="true">ⓘ</span><p><strong>Registros compartidos.</strong> Al guardar, los cambios se envían a Supabase y quedan disponibles para los usuarios autorizados del servicio.</p></div>
+      </aside>
+    </div>
+    <p class="hint">Los permisos guardados se consultan y se eliminan desde la pestaña Listado.</p><p id="status" class="sr-only" role="status" aria-live="polite"></p>
+    </div>
+    <section id="query-view" hidden aria-labelledby="query-title">
+      <div class="intro"><div><p class="eyebrow">CONSULTA DIARIA</p><h1 id="query-title">Permisos</h1><p class="subtitle">La disponibilidad del servicio, día a día.</p></div></div>
+      <section class="today-banner" aria-labelledby="today-heading"><div><p class="eyebrow">HOY</p><h2 id="today-heading"></h2><p id="today-roster"></p></div><div class="today-total"><strong id="today-count">15</strong><span>Adjuntos trabajando hoy</span></div></section>
+      <div class="query-date"><div><label for="consult-date">Fecha de consulta</label><input type="date" id="consult-date" required></div><button id="go-today" type="button" class="secondary">Volver a hoy</button></div>
+      <div class="query-grid" aria-live="polite"><section class="summary"><p class="eyebrow" id="selected-date"></p><h2>Adjuntos Trabajando</h2><strong class="working-number" id="working-count">15</strong><p id="calculation"></p></section><section class="form-panel"><h2>Adjuntos de permiso</h2><p class="hint">Nombre y motivo entre corchetes.</p><ul id="absent-list" class="absent-list"></ul><p id="no-absences" class="subtitle">No hay permisos registrados para esta fecha.</p></section></div>
+      <p class="hint">Cálculo: plantilla activa en esa fecha menos los adjuntos distintos con permiso. No se descuentan festivos ni fines de semana.</p>
+    </section>
+    <section id="list-view" hidden aria-labelledby="list-title">
+      <div class="intro"><div><p class="eyebrow">HISTORIAL ANUAL</p><h1 id="list-title">Listado</h1><p class="subtitle">Busca y revisa los permisos sin alargar el formulario de entrada.</p></div></div>
+      <div class="filters"><div><label for="list-search">Buscar adjunto o motivo</label><input id="list-search" type="search" placeholder="Nombre o código"></div><div><label for="list-month">Mes</label><select id="list-month"><option value="">Todos los meses</option></select></div><div><label for="list-staff">Adjunto</label><select id="list-staff"><option value="">Todos</option></select></div><div><label for="list-reason">Motivo</label><select id="list-reason"><option value="">Todos</option></select></div></div>
+      <p id="list-count" class="hint" aria-live="polite"></p><button id="undo-delete" type="button" class="secondary" hidden>Deshacer la última eliminación</button>
+      <div class="table-wrap"><table><thead><tr><th>Fecha</th><th>Adjunto</th><th>Motivo</th><th>Acción</th></tr></thead><tbody id="record-list"></tbody></table></div><p id="list-empty" class="empty">No hay permisos que coincidan con estos filtros.</p>
+      <div class="pagination"><button id="previous-page" type="button" class="secondary">Anterior</button><span id="page-label" aria-live="polite"></span><button id="next-page" type="button" class="secondary">Siguiente</button></div>
+    </section>
+    <section id="settings-view" hidden aria-labelledby="settings-title">
+      <div class="intro"><div><p class="eyebrow">ADMINISTRACIÓN DEL AÑO</p><h1 id="settings-title">Configuración</h1><p class="subtitle">Gestiona la plantilla, los motivos y los archivos anuales.</p></div></div>
+      <p class="range-preview" id="settings-year"></p>
+      <section class="form-panel settings-panel"><h2>Adjuntos</h2><p class="hint">Puedes corregir un nombre o añadir otra persona. Para una sustitución, indica la fecha de baja del adjunto anterior y añade al nuevo; así se conserva el historial.</p><div id="staff-settings" class="settings-list"></div>
+      <form id="staff-add" class="compact-form"><div><label for="new-staff-name">Nuevo adjunto</label><input id="new-staff-name" required maxlength="80" placeholder="Nombre"></div><div><label for="new-staff-from">Fecha de alta</label><input id="new-staff-from" type="date" required></div><button type="submit" class="primary">Añadir adjunto</button></form></section>
+      <section class="form-panel settings-panel"><h2>Motivos de permiso</h2><p class="hint">Los cambios de nombre y código se reflejan en los permisos de este año. Desactivar un motivo lo retira del formulario, pero conserva los registros anteriores. EN se mantiene abreviado.</p><div id="reason-settings" class="settings-list"></div>
+      <form id="reason-add" class="compact-form"><div><label for="new-reason-code">Código nuevo</label><input id="new-reason-code" required maxlength="8" pattern="[A-Za-z0-9]{1,8}" placeholder="Ej. PF"></div><div><label for="new-reason-label">Descripción</label><input id="new-reason-label" required maxlength="100" placeholder="Motivo del permiso"></div><button type="submit" class="primary">Añadir motivo</button></form></section>
+      <section class="form-panel settings-panel"><h2>Años y copias de seguridad</h2><p class="hint">Un año nuevo empieza sin permisos y copia los adjuntos activos al final del año seleccionado y sus motivos. Los años anteriores se conservan. No se puede sobrescribir un año existente.</p>
+      <form id="year-create" class="compact-form"><div><label for="new-year">Año nuevo</label><input id="new-year" type="number" min="1900" max="9999" required></div><button type="submit" class="primary">Crear año vacío</button></form>
+      <div class="backup-actions"><button id="download-year" class="secondary" type="button">Descargar archivo del año</button><div><label for="import-year">Recuperar un archivo anual (.json)</label><input id="import-year" type="file" accept=".json,application/json"></div></div><p class="hint">El archivo incluye la plantilla, los motivos y los permisos del año seleccionado. Puedes guardarlo vacío o descargar una copia cuando quieras. Conserva copias periódicas en un lugar seguro. Importar envía el contenido del archivo a la base de datos compartida.</p></section>
+    </section>
+    </div>
+    <footer><span>Adjuntos · Registro de permisos</span><span>Registro y consulta · Supabase</span></footer>
+  </main>
+</body>
+</html>
