@@ -58,6 +58,42 @@ function renderConsultation(){
   $('absent-list').replaceChildren();if(result)result.absent.slice().sort((a,b)=>staffName(d,a.staffId).localeCompare(staffName(d,b.staffId),'es')).forEach(r=>{const li=document.createElement('li');li.textContent=`${staffName(d,r.staffId)} [${reasonCode(d,r.reasonId)}]`;$('absent-list').append(li);});
   $('no-absences').hidden=Boolean(result&&result.absent.length);$('no-absences').textContent=!day?'Selecciona una fecha.':!result?'No hay un archivo disponible para el año consultado.':'No hay permisos registrados para esta fecha.';
 }
+function renderMonth(){
+  const days=$('calendar-days');days.replaceChildren();
+  if(role!=='editor'||publicMode)return;
+  if($('calendar-month').dataset.year!==String(year)){
+    $('calendar-month').value=year===thisYear?todayISO().slice(5,7):'01';
+    $('calendar-month').dataset.year=String(year);
+  }
+  const month=$('calendar-month').value,first=`${year}-${month}-01`;
+  const start=new Date(first+'T00:00:00Z');
+  $('calendar-heading').textContent=new Intl.DateTimeFormat('es-ES',{month:'long',year:'numeric',timeZone:'UTC'}).format(start);
+  $('calendar-message').hidden=!blocked;
+  $('calendar-message').textContent='Actualiza los datos para consultar el mes.';
+  $('month-calendar').hidden=blocked;
+  if(blocked)return;
+  const last=new Date(start);last.setUTCMonth(last.getUTCMonth()+1);last.setUTCDate(0);
+  const offset=(start.getUTCDay()+6)%7;
+  for(let i=0;i<offset;i++){const blank=document.createElement('span');blank.setAttribute('aria-hidden','true');days.append(blank);}
+  for(const day of C.datesInRange(first,last.toISOString().slice(0,10),true)){
+    const result=C.daily(data(),day),button=document.createElement('button');
+    button.type='button';button.className='month-day';button.dataset.date=day;
+    button.classList.toggle('month-low',result.working<=5);
+    button.classList.toggle('month-today',day===todayISO());
+    button.setAttribute('aria-label',`${formatDate(day)}: ${result.working} adjuntos trabajando. Ver permisos.`);
+    if(day===todayISO())button.setAttribute('aria-current','date');
+    const date=document.createElement('span'),count=document.createElement('strong'),label=document.createElement('span');
+    date.className='month-day-number';date.textContent=String(Number(day.slice(8)));
+    count.textContent=result.working;label.className='month-day-label';label.textContent='trabajando';
+    button.append(date,count,label);
+    button.addEventListener('click',()=>{
+      if(role!=='editor'||blocked||loading||saving)return;
+      $('consult-date').value=day;showView('query');$('consult-date').focus();
+    });days.append(button);
+  }
+}
+$('calendar-month').addEventListener('change',renderMonth);
+for(let m=1;m<=12;m++)$('calendar-month').add(new Option(new Intl.DateTimeFormat('es-ES',{month:'long',timeZone:'UTC'}).format(new Date(Date.UTC(2026,m-1,1))),String(m).padStart(2,'0')));
 function renderList(){
   const d=data(),search=C.normalize($('list-search').value);
   const rows=d.records.filter(r=>(!$('list-month').value||r.date.slice(5,7)===$('list-month').value)&&(!$('list-staff').value||r.staffId===$('list-staff').value)&&(!$('list-reason').value||r.reasonId===$('list-reason').value)&&(!search||C.normalize(staffName(d,r.staffId)+' '+reasonCode(d,r.reasonId)+' '+d.reasons.find(m=>m.id===r.reasonId).label).includes(search))).sort((a,b)=>b.date.localeCompare(a.date)||staffName(d,a.staffId).localeCompare(staffName(d,b.staffId),'es'));
@@ -86,9 +122,9 @@ function renderSettings(){
     f.addEventListener('submit',async e=>{e.preventDefault();if(!canEdit()||!f.reportValidity())return;const next=clone(data()),newCode=code.value.trim().toUpperCase();Object.assign(next.reasons.find(v=>v.id===r.id),{code:newCode,label:newCode==='EN'?'EN':label.value.trim(),active:active.checked});if(await changeYearData(next))notice('Motivo actualizado para este año.');});$('reason-settings').append(f);
   });
 }
-function showView(next){if(role==='consultor')next='query';view=next;for(const n of ['entry','query','list','settings']){$(n+'-view').hidden=n!==view;$(n+'-tab').hidden=role==='consultor'&&n!=='query';$(n+'-tab').setAttribute('aria-pressed',String(n===view));}document.title='Adjuntos · '+({entry:'Entrada_permisos',query:'Permisos',list:'Listado',settings:'Configuración'}[view]);renderConsultation();if(view==='list')renderList();}
+function showView(next){if(role==='consultor')next='query';view=next;for(const n of ['entry','query','month','list','settings']){$(n+'-view').hidden=n!==view;$(n+'-tab').hidden=role==='consultor'&&n!=='query';$(n+'-tab').setAttribute('aria-pressed',String(n===view));}document.title='Adjuntos · '+({entry:'Entrada_permisos',query:'Permisos',month:'Consulta mensual',list:'Listado',settings:'Configuración'}[view]);renderConsultation();if(view==='list')renderList();if(view==='month')renderMonth();}
 function renderAll(){renderOptions();renderList();renderSettings();updateSummary();showView(view);}
-for(const n of ['entry','query','list','settings'])$(n+'-tab').addEventListener('click',()=>showView(n));
+for(const n of ['entry','query','month','list','settings'])$(n+'-tab').addEventListener('click',()=>showView(n));
 $('year-select').addEventListener('change',()=>{year=Number($('year-select').value);page=1;$('permission-form').reset();$('consult-date').value=year===thisYear?todayISO():`${year}-01-01`;renderAll();});
 const form=$('permission-form');form.addEventListener('input',()=>{updateSummary();$('save-message').hidden=true;});form.addEventListener('change',updateSummary);form.addEventListener('reset',()=>setTimeout(updateSummary,0));
 form.addEventListener('submit',async e=>{e.preventDefault();if(!canEdit())return;updateSummary();if(!form.reportValidity())return;try{const days=C.datesInRange($('date').value,$('end-date').value,$('include-weekends').checked),name=staffName(data(),$('staff').value),next=C.addPermissions(data(),$('staff').value,$('reason').value,days,uid);if(!await changeYearData(next))return;$('save-message').textContent=`${days.length} días guardados para ${name} en ${year}. Puedes verlos en Listado.`;$('save-message').hidden=false;form.reset();$('staff').focus();}catch(err){$('error').textContent=err.message;$('error').hidden=false;}});
@@ -110,7 +146,7 @@ function loginScreen(message='Entra con tu cuenta del servicio.') {
   $('auth-panel').hidden=false;$('auth-message').textContent=message;
   $('auth-forget').hidden=!cloud.session;$('login-password').value='';
   $('permission-form').reset();$('record-list').replaceChildren();$('absent-list').replaceChildren();
-  $('staff-settings').replaceChildren();$('reason-settings').replaceChildren();
+  $('staff-settings').replaceChildren();$('reason-settings').replaceChildren();$('calendar-days').replaceChildren();
   $('staff').replaceChildren();$('reason').replaceChildren();
   $('summary-staff').textContent='Sin seleccionar';$('summary-date').textContent='Sin seleccionar';
   $('summary-reason').textContent='Sin seleccionar';$('today-count').textContent='—';$('working-count').textContent='—';
@@ -141,7 +177,7 @@ async function loadCloud({quiet=false}={}) {
     }
   }catch(e){
     if(!quiet || !cloud.session || e.code==='ACCESS_DENIED'){loginScreen(e.message);}
-    else {blocked=true;$('cloud-message').hidden=false;$('cloud-message').textContent=e.message;}
+    else {blocked=true;if(view==='month')renderMonth();$('cloud-message').hidden=false;$('cloud-message').textContent=e.message;}
     $('sync-status').textContent='Sin actualizar';
   }finally{loading=false;$('app-shell').inert=false;$('refresh-cloud').disabled=false;$('logout').disabled=false;}
 }
@@ -166,11 +202,11 @@ $('initialize-cloud').addEventListener('click',async()=>{
 // Keep consultation fresh. Never replace an editor's form while they are typing.
 setInterval(()=>{
   if(publicMode&&!document.hidden){renderPublicConsultation();return;}
-  if(cloud.session&&!document.hidden&&!$('app-shell').hidden&&view==='query')loadCloud({quiet:true});
+  if(cloud.session&&!document.hidden&&!$('app-shell').hidden&&['query','month'].includes(view))loadCloud({quiet:true});
 },60000);
 document.addEventListener('visibilitychange',()=>{
   if(publicMode&&!document.hidden){renderPublicConsultation();return;}
-  if(!document.hidden&&cloud.session&&view==='query')loadCloud({quiet:true});
+  if(!document.hidden&&cloud.session&&['query','month'].includes(view))loadCloud({quiet:true});
 });
 function publicScreen(){
   loginScreen();publicMode=true;view='query';

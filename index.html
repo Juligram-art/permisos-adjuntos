@@ -5,11 +5,11 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>Adjuntos · Entrada_permisos</title>
-  <link rel="stylesheet" href="styles.css?v=7">
-  <script src="core.js?v=7" defer></script>
-  <script src="supabase-config.js?v=7" defer></script>
-  <script src="cloud.js?v=7" defer></script>
-  <script src="app.js?v=7" defer></script>
+  <link rel="stylesheet" href="styles.css?v=8">
+  <script src="core.js?v=8" defer></script>
+  <script src="supabase-config.js?v=8" defer></script>
+  <script src="cloud.js?v=8" defer></script>
+  <script src="app.js?v=8" defer></script>
 </head>
 <body>
   <header class="topbar"><a class="brand" href="./"><span class="brand-mark" aria-hidden="true">a.</span>adjuntos<span class="brand-divider"></span><span class="brand-caption">Organización del servicio</span></a><span class="mode"><span></span>Consulta de permisos</span></header>
@@ -32,9 +32,19 @@
     <div id="app-shell" hidden>
     
     <div class="app-toolbar" id="year-toolbar"><div><label for="year-select">Año de trabajo</label><select id="year-select"></select></div></div>
-    <nav class="view-nav" aria-label="Vistas"><button id="entry-tab" data-view="entry" type="button" aria-pressed="true">Entrada_permisos</button><button id="query-tab" data-view="query" type="button" aria-pressed="false">Permisos</button><button id="list-tab" data-view="list" type="button" aria-pressed="false">Listado</button><button id="settings-tab" data-view="settings" type="button" aria-pressed="false">Configuración</button></nav>
+    <nav class="view-nav" aria-label="Vistas"><button id="entry-tab" data-view="entry" type="button" aria-pressed="true">Entrada_permisos</button><button id="query-tab" data-view="query" type="button" aria-pressed="false">Permisos</button><button id="month-tab" data-view="month" type="button" aria-pressed="false" hidden>Consulta mensual</button><button id="list-tab" data-view="list" type="button" aria-pressed="false">Listado</button><button id="settings-tab" data-view="settings" type="button" aria-pressed="false">Configuración</button></nav>
     <p id="app-message" class="range-preview" role="status" hidden></p><p id="app-error" class="error" role="alert" hidden></p>
     <p id="storage-warning" class="error" role="alert" hidden></p>
+    <section id="month-view" hidden aria-labelledby="month-title">
+      <div class="intro"><div><p class="eyebrow">DISPONIBILIDAD DEL SERVICIO</p><h1 id="month-title">Consulta mensual</h1><p class="subtitle">Adjuntos trabajando cada día. Pulsa un día para consultar sus permisos.</p></div></div>
+      <div class="query-date"><div><label for="calendar-month">Mes de consulta</label><select id="calendar-month"></select></div><h2 id="calendar-heading" aria-live="polite"></h2></div>
+      <p class="hint">En rojo: 5 adjuntos o menos trabajando. Se incluyen sábados y domingos.</p>
+      <p id="calendar-message" class="error" hidden></p>
+      <div class="month-calendar" id="month-calendar" aria-labelledby="calendar-heading">
+        <div class="month-weekdays" aria-hidden="true"><span>Lun</span><span>Mar</span><span>Mié</span><span>Jue</span><span>Vie</span><span>Sáb</span><span>Dom</span></div>
+        <div id="calendar-days" class="month-days"></div>
+      </div>
+    </section>
     <div id="entry-view">
     <div class="intro"><div><p class="eyebrow">GESTIÓN DE PERMISOS</p><h1>Entrada_permisos</h1><p class="subtitle">Selecciona un adjunto, elige el día y añade el motivo.</p></div><span class="step-tag">01 <span>/ Registro</span></span></div>
     <div class="workspace">
