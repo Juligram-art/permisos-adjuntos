@@ -1,6 +1,6 @@
 'use strict';
 const C=window.PermisosCore, $=id=>document.getElementById(id);
-let state,blocked=true,role='consultor',view='query',page=1,undo=null,saving=false,loading=false,publicMode=false,publicRequest=0;
+let state,blocked=true,role='consultor',view='query',page=1,undo=null,saving=false,loading=false,publicMode=false,publicRequest=0,monthRequest=0;
 const cloud=new window.AdjuntosCloud(window.ADJUNTOS_SUPABASE,sessionStorage,fetch.bind(window));
 function todayISO(){const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());return ['year','month','day'].map(t=>p.find(x=>x.type===t).value).join('-');}
 const thisYear=Number(todayISO().slice(0,4));let year=thisYear;
@@ -58,40 +58,65 @@ function renderConsultation(){
   $('absent-list').replaceChildren();if(result)result.absent.slice().sort((a,b)=>staffName(d,a.staffId).localeCompare(staffName(d,b.staffId),'es')).forEach(r=>{const li=document.createElement('li');li.textContent=`${staffName(d,r.staffId)} [${reasonCode(d,r.reasonId)}]`;$('absent-list').append(li);});
   $('no-absences').hidden=Boolean(result&&result.absent.length);$('no-absences').textContent=!day?'Selecciona una fecha.':!result?'No hay un archivo disponible para el año consultado.':'No hay permisos registrados para esta fecha.';
 }
-function renderMonth(){
-  const days=$('calendar-days');days.replaceChildren();
-  if(role!=='editor'||publicMode)return;
-  if($('calendar-month').dataset.year!==String(year)){
+async function renderMonth(){
+  const request=++monthRequest,days=$('calendar-days');days.replaceChildren();
+  const anonymous=publicMode;
+  $('calendar-year-field').hidden=!anonymous;
+  if(!anonymous&&$('calendar-month').dataset.year!==String(year)){
     $('calendar-month').value=year===thisYear?todayISO().slice(5,7):'01';
     $('calendar-month').dataset.year=String(year);
   }
-  const month=$('calendar-month').value,first=`${year}-${month}-01`;
-  const start=new Date(first+'T00:00:00Z');
+  const selectedYear=anonymous?Number($('calendar-year').value):year;
+  $('month-calendar').hidden=true;$('calendar-message').hidden=false;
+  if(!C.validYear(selectedYear)){$('calendar-heading').textContent='';$('calendar-message').textContent='Introduce un año entre 1900 y 9999.';return;}
+  const month=$('calendar-month').value,first=`${selectedYear}-${month}-01`,start=new Date(first+'T00:00:00Z');
   $('calendar-heading').textContent=new Intl.DateTimeFormat('es-ES',{month:'long',year:'numeric',timeZone:'UTC'}).format(start);
-  $('calendar-message').hidden=!blocked;
-  $('calendar-message').textContent='Actualiza los datos para consultar el mes.';
-  $('month-calendar').hidden=blocked;
-  if(blocked)return;
+  $('calendar-message').textContent=anonymous?'Consultando el mes…':'Actualiza los datos para consultar el mes.';
+  if(!anonymous&&blocked)return;
   const last=new Date(start);last.setUTCMonth(last.getUTCMonth()+1);last.setUTCDate(0);
+  const dates=C.datesInRange(first,last.toISOString().slice(0,10),true);
+  let results;
+  try{
+    if(anonymous){
+      $('sync-status').textContent='Consultando…';
+      results=[await cloud.publicDay(first)];
+      if(results[0]){
+        let cursor=1;
+        await Promise.all(Array.from({length:4},async()=>{
+          while(cursor<dates.length&&request===monthRequest){const i=cursor++;results[i]=await cloud.publicDay(dates[i]);}
+        }));
+      }else results=dates.map(()=>null);
+    }else results=dates.map(day=>C.daily(state.years[selectedYear],day));
+    if(request!==monthRequest||view!=='month'||anonymous!==publicMode)return;
+    $('calendar-message').hidden=results.some(Boolean);
+    $('calendar-message').textContent='No hay datos disponibles para el año consultado.';
+    $('month-calendar').hidden=false;
+    if(anonymous){$('sync-status').textContent='Actualizado a las '+new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});$('cloud-message').hidden=true;}
+  }catch(e){
+    if(request!==monthRequest||view!=='month')return;
+    $('calendar-message').textContent=e.message+' Pulsa Actualizar datos para volver a intentarlo.';
+    $('sync-status').textContent='Sin actualizar';return;
+  }
   const offset=(start.getUTCDay()+6)%7;
   for(let i=0;i<offset;i++){const blank=document.createElement('span');blank.setAttribute('aria-hidden','true');days.append(blank);}
-  for(const day of C.datesInRange(first,last.toISOString().slice(0,10),true)){
-    const result=C.daily(data(),day),button=document.createElement('button');
+  dates.forEach((day,i)=>{
+    const result=results[i],button=document.createElement('button');
     button.type='button';button.className='month-day';button.dataset.date=day;
-    button.classList.toggle('month-low',result.working<=5);
+    button.classList.toggle('month-low',Boolean(result)&&result.working<=5);
     button.classList.toggle('month-today',day===todayISO());
-    button.setAttribute('aria-label',`${formatDate(day)}: ${result.working} adjuntos trabajando. Ver permisos.`);
+    button.setAttribute('aria-label',`${formatDate(day)}: ${result?result.working+' adjuntos trabajando':'sin datos'}. Ver permisos.`);
     if(day===todayISO())button.setAttribute('aria-current','date');
     const date=document.createElement('span'),count=document.createElement('strong'),label=document.createElement('span');
     date.className='month-day-number';date.textContent=String(Number(day.slice(8)));
-    count.textContent=result.working;label.className='month-day-label';label.textContent='trabajando';
+    count.textContent=result?result.working:'—';label.className='month-day-label';label.textContent=result?'trabajando':'sin datos';
     button.append(date,count,label);
     button.addEventListener('click',()=>{
-      if(role!=='editor'||blocked||loading||saving)return;
+      if((!publicMode&&blocked)||loading||saving)return;
       $('consult-date').value=day;showView('query');$('consult-date').focus();
     });days.append(button);
-  }
+  });
 }
+$('calendar-year').addEventListener('input',renderMonth);
 $('calendar-month').addEventListener('change',renderMonth);
 for(let m=1;m<=12;m++)$('calendar-month').add(new Option(new Intl.DateTimeFormat('es-ES',{month:'long',timeZone:'UTC'}).format(new Date(Date.UTC(2026,m-1,1))),String(m).padStart(2,'0')));
 function renderList(){
@@ -122,7 +147,7 @@ function renderSettings(){
     f.addEventListener('submit',async e=>{e.preventDefault();if(!canEdit()||!f.reportValidity())return;const next=clone(data()),newCode=code.value.trim().toUpperCase();Object.assign(next.reasons.find(v=>v.id===r.id),{code:newCode,label:newCode==='EN'?'EN':label.value.trim(),active:active.checked});if(await changeYearData(next))notice('Motivo actualizado para este año.');});$('reason-settings').append(f);
   });
 }
-function showView(next){if(role==='consultor')next='query';view=next;for(const n of ['entry','query','month','list','settings']){$(n+'-view').hidden=n!==view;$(n+'-tab').hidden=role==='consultor'&&n!=='query';$(n+'-tab').setAttribute('aria-pressed',String(n===view));}document.title='Adjuntos · '+({entry:'Entrada_permisos',query:'Permisos',month:'Consulta mensual',list:'Listado',settings:'Configuración'}[view]);renderConsultation();if(view==='list')renderList();if(view==='month')renderMonth();}
+function showView(next){if(role==='consultor'&&!['query','month'].includes(next))next='query';publicRequest++;monthRequest++;view=next;for(const n of ['entry','query','month','list','settings']){$(n+'-view').hidden=n!==view;$(n+'-tab').hidden=role==='consultor'&&!['query','month'].includes(n);$(n+'-tab').setAttribute('aria-pressed',String(n===view));}document.title='Adjuntos · '+({entry:'Entrada_permisos',query:'Permisos',month:'Consulta mensual',list:'Listado',settings:'Configuración'}[view]);if(view==='query')renderConsultation();if(view==='list')renderList();if(view==='month')renderMonth();}
 function renderAll(){renderOptions();renderList();renderSettings();updateSummary();showView(view);}
 for(const n of ['entry','query','month','list','settings'])$(n+'-tab').addEventListener('click',()=>showView(n));
 $('year-select').addEventListener('change',()=>{year=Number($('year-select').value);page=1;$('permission-form').reset();$('consult-date').value=year===thisYear?todayISO():`${year}-01-01`;renderAll();});
@@ -140,7 +165,7 @@ $('download-year').addEventListener('click',()=>{if(!canEdit())return;const blob
 $('import-year').addEventListener('change',async()=>{const file=$('import-year').files[0];if(!file||!canEdit())return;try{if(file.size>10*1024*1024)throw Error('El archivo supera los 10 MB.');const loaded=JSON.parse(await file.text());if(loaded.format!=='adjuntos-anual'||loaded.version!==2)throw Error('No es un archivo anual compatible.');const d=C.validateYear(loaded.data);delete d._revision;if(state.years[d.year])throw Error('Ese año ya existe. No se puede sobrescribir.');if(!canEdit())return;if(!confirm(`Se enviarán a Supabase ${d.records.length} permisos y la plantilla de ${d.year}. ¿Importar este archivo para compartirlo con el servicio?`))return;const next=clone(state);next.years[d.year]=d;if(await commit(next)){year=d.year;page=1;$('consult-date').value=`${year}-01-01`;renderAll();notice(`Archivo ${year} recuperado.`);}}catch(err){notice('No se ha importado. '+err.message,true);}finally{$('import-year').value='';}});
 
 function loginScreen(message='Entra con tu cuenta del servicio.') {
-  publicMode=false;publicRequest++;blocked=true;role='consultor';undo=null;document.title='Adjuntos · Acceso';
+  publicMode=false;publicRequest++;monthRequest++;blocked=true;role='consultor';undo=null;document.title='Adjuntos · Acceso';
   state={version:2,revision:0,years:{[thisYear]:C.defaultYear(thisYear)}};
   $('app-shell').hidden=true;$('empty-cloud').hidden=true;$('session-bar').hidden=true;
   $('auth-panel').hidden=false;$('auth-message').textContent=message;
@@ -191,7 +216,7 @@ $('logout').addEventListener('click',async()=>{
   if(saving||loading)return;const closing=cloud.signOut();publicScreen();await closing;
 });
 $('auth-forget').addEventListener('click',async()=>{await cloud.signOut();loginScreen();});
-$('refresh-cloud').addEventListener('click',()=>publicMode?renderPublicConsultation():loadCloud());
+$('refresh-cloud').addEventListener('click',()=>publicMode?(view==='month'?renderMonth():renderPublicConsultation()):loadCloud());
 $('initialize-cloud').addEventListener('click',async()=>{
   if(saving||loading||role!=='editor')return;
   saving=true;$('initialize-cloud').disabled=true;
@@ -201,15 +226,15 @@ $('initialize-cloud').addEventListener('click',async()=>{
 });
 // Keep consultation fresh. Never replace an editor's form while they are typing.
 setInterval(()=>{
-  if(publicMode&&!document.hidden){renderPublicConsultation();return;}
+  if(publicMode&&!document.hidden){if(view==='month')renderMonth();else renderPublicConsultation();return;}
   if(cloud.session&&!document.hidden&&!$('app-shell').hidden&&['query','month'].includes(view))loadCloud({quiet:true});
 },60000);
 document.addEventListener('visibilitychange',()=>{
-  if(publicMode&&!document.hidden){renderPublicConsultation();return;}
+  if(publicMode&&!document.hidden){if(view==='month')renderMonth();else renderPublicConsultation();return;}
   if(!document.hidden&&cloud.session&&['query','month'].includes(view))loadCloud({quiet:true});
 });
 function publicScreen(){
-  loginScreen();publicMode=true;view='query';
+  loginScreen();publicMode=true;view='query';$('calendar-year').value=thisYear;$('calendar-month').value=todayISO().slice(5,7);delete $('calendar-month').dataset.year;
   $('auth-panel').hidden=true;$('session-bar').hidden=false;$('app-shell').hidden=false;
   $('year-toolbar').hidden=true;$('logout').hidden=true;$('editor-access').hidden=false;
   $('session-label').textContent='Consulta abierta · Solo lectura';$('cloud-message').hidden=true;
