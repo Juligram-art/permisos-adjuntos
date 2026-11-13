@@ -30,7 +30,7 @@
         const error=Error(response.status===429?'Demasiados intentos. Espera unos minutos.':
           /Invalid login credentials/i.test(message)?'El correo o la contraseña no son correctos.':
           /Email not confirmed/i.test(message)?'El correo de esta cuenta todavía no está confirmado.':
-          value?.code==='PGRST202'?'Falta preparar el guardado compartido. Ejecuta el archivo 02 en SQL Editor.':message);
+          value?.code==='PGRST202'?'Falta completar la configuración de acceso privado en Supabase. Contacta con el administrador.':message);
         error.status=response.status; error.code=value?.code; throw error;
       }
       return value;
@@ -59,6 +59,7 @@
       catch(e) {if(e.status===401)this.clear();throw e;}
     }
     async load() {
+      await this.api('rpc/adjuntos_activar_consultor',{method:'POST',body:{}});
       const profiles=await this.api('adjuntos_usuarios?select=perfil,activo&usuario_id=eq.'+encodeURIComponent(this.session.user.id));
       const profile=profiles[0];
       if(!profile?.activo || !['editor','consultor'].includes(profile.perfil)) {
@@ -68,16 +69,11 @@
       const years=await this.api('rpc/adjuntos_leer',{method:'POST',body:{}});
       return {role:profile.perfil,email:this.session.user.email,years};
     }
-    async publicDay(day) {
-      try {
-        return await this.request('/rest/v1/rpc/adjuntos_consulta_publica',{
-          method:'POST',body:{dia:day}
-        });
-      } catch(e) {
-        if(e.code==='PGRST202')e.message='La consulta abierta todavía no está activada. Ejecuta el archivo 03 en Supabase. Los editores pueden seguir entrando con su cuenta.';
-        throw e;
-      }
+    async signUp(email,password) {
+      return this.request('/auth/v1/signup?redirect_to='+encodeURIComponent('https://juligram-art.github.io/permisos-adjuntos/'),{method:'POST',body:{email,password}});
     }
+    async authorizedEmails() {return this.api('adjuntos_correos_autorizados?select=email,activo&order=email');}
+    async authorizeEmail(email,active) {return this.api('rpc/adjuntos_autorizar_correo',{method:'POST',body:{correo:email,permitir:active}});}
     async save(data,revision) {
       return this.api('rpc/adjuntos_guardar',{method:'POST',body:{datos:data,revision_esperada:revision??null}});
     }

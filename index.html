@@ -5,28 +5,34 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="color-scheme" content="light">
   <title>Adjuntos · Entrada_permisos</title>
-  <link rel="stylesheet" href="styles.css?v=9">
-  <script src="core.js?v=9" defer></script>
-  <script src="supabase-config.js?v=9" defer></script>
-  <script src="cloud.js?v=9" defer></script>
-  <script src="app.js?v=9" defer></script>
+  <link rel="stylesheet" href="styles.css?v=10">
+  <script src="core.js?v=10" defer></script>
+  <script src="supabase-config.js?v=10" defer></script>
+  <script src="cloud.js?v=10" defer></script>
+  <script src="app.js?v=10" defer></script>
 </head>
 <body>
   <header class="topbar"><a class="brand" href="./"><span class="brand-mark" aria-hidden="true">a.</span>adjuntos<span class="brand-divider"></span><span class="brand-caption">Organización del servicio</span></a><span class="mode"><span></span>Consulta de permisos</span></header>
   <main>
     <section id="auth-panel" class="form-panel auth-panel">
-      <p class="eyebrow">ORGANIZACIÓN DEL SERVICIO</p><h1>Acceso de editores</h1>
-      <p class="subtitle">Entra con tu cuenta para registrar permisos y gestionar el servicio.</p>
+      <p class="eyebrow">ORGANIZACIÓN DEL SERVICIO</p><h1>Acceso al servicio</h1>
+      <p class="subtitle">Entra con tu correo y contraseña para consultar los permisos.</p>
       <form id="login-form">
         <label for="login-email">Correo electrónico</label><input id="login-email" type="email" autocomplete="username" required>
         <label for="login-password">Contraseña</label><input id="login-password" type="password" autocomplete="current-password" required>
         <button class="primary" type="submit">Entrar</button>
       </form>
       <p id="auth-message" role="status" class="hint">El administrador del servicio gestiona las cuentas y los perfiles.</p>
-      <button id="back-public" type="button" class="secondary">Volver a la consulta abierta</button>
+      <details id="signup-panel"><summary>Crear cuenta de consultor</summary>
+        <p class="hint">Utiliza el correo que haya autorizado un editor. Confirma tu correo antes de entrar. El registro no concede permisos de edición.</p>
+        <form id="signup-form"><label for="signup-email">Tu correo autorizado</label><input id="signup-email" type="email" autocomplete="username" maxlength="254" required>
+        <label for="signup-password">Crea tu contraseña</label><input id="signup-password" type="password" autocomplete="new-password" minlength="10" required><p class="hint">Al menos 10 caracteres.</p>
+        <label for="signup-repeat">Repite tu contraseña</label><input id="signup-repeat" type="password" autocomplete="new-password" minlength="10" required>
+        <button class="primary" type="submit">Crear mi cuenta</button><p id="signup-message" role="status" class="hint"></p></form>
+      </details>
       <button id="auth-forget" type="button" class="secondary" hidden>Usar otra cuenta</button>
     </section>
-    <div id="session-bar" class="session-bar" hidden><span id="session-label"></span><span id="sync-status" role="status"></span><button id="refresh-cloud" class="secondary" type="button">Actualizar datos</button><button id="editor-access" class="secondary" type="button" hidden>Acceso editores</button><button id="logout" class="secondary" type="button">Cerrar sesión</button></div>
+    <div id="session-bar" class="session-bar" hidden><span id="session-label"></span><span id="sync-status" role="status"></span><button id="refresh-cloud" class="secondary" type="button">Actualizar datos</button><button id="logout" class="secondary" type="button">Cerrar sesión</button></div>
     <p id="cloud-message" class="error" role="alert" hidden></p>
     <section id="empty-cloud" class="form-panel" hidden><h1>Todo listo para empezar</h1><p class="subtitle" id="empty-message"></p><button id="initialize-cloud" class="primary" type="button">Crear año inicial</button></section>
     <div id="app-shell" hidden>
@@ -37,7 +43,7 @@
     <p id="storage-warning" class="error" role="alert" hidden></p>
     <section id="month-view" hidden aria-labelledby="month-title">
       <div class="intro"><div><p class="eyebrow">DISPONIBILIDAD DEL SERVICIO</p><h1 id="month-title">Consulta mensual</h1><p class="subtitle">Adjuntos trabajando cada día. Pulsa un día para consultar sus permisos.</p></div></div>
-      <div class="query-date"><div><label for="calendar-month">Mes de consulta</label><select id="calendar-month"></select></div><div id="calendar-year-field" hidden><label for="calendar-year">Año de consulta</label><input id="calendar-year" type="number" min="1900" max="9999" required></div><h2 id="calendar-heading" aria-live="polite"></h2></div>
+      <div class="query-date"><div><label for="calendar-month">Mes de consulta</label><select id="calendar-month"></select></div><h2 id="calendar-heading" aria-live="polite"></h2></div>
       <p class="hint">En rojo: 5 adjuntos o menos trabajando. Se incluyen sábados y domingos.</p>
       <p id="calendar-message" class="error" hidden></p>
       <div class="month-calendar" id="month-calendar" aria-labelledby="calendar-heading">
@@ -87,6 +93,9 @@
       <form id="staff-add" class="compact-form"><div><label for="new-staff-name">Nuevo adjunto</label><input id="new-staff-name" required maxlength="80" placeholder="Nombre"></div><div><label for="new-staff-from">Fecha de alta</label><input id="new-staff-from" type="date" required></div><button type="submit" class="primary">Añadir adjunto</button></form></section>
       <section class="form-panel settings-panel"><h2>Motivos de permiso</h2><p class="hint">Los cambios de nombre y código se reflejan en los permisos de este año. Desactivar un motivo lo retira del formulario, pero conserva los registros anteriores. EN se mantiene abreviado.</p><div id="reason-settings" class="settings-list"></div>
       <form id="reason-add" class="compact-form"><div><label for="new-reason-code">Código nuevo</label><input id="new-reason-code" required maxlength="8" pattern="[A-Za-z0-9]{1,8}" placeholder="Ej. PF"></div><div><label for="new-reason-label">Descripción</label><input id="new-reason-label" required maxlength="100" placeholder="Motivo del permiso"></div><button type="submit" class="primary">Añadir motivo</button></form></section>
+      <section class="form-panel settings-panel"><h2>Acceso de consultores</h2><p class="hint">Autoriza el correo de cada persona. Después podrá crear su cuenta desde la pantalla de acceso y confirmar su correo. Retirar la autorización impide nuevas consultas; no modifica las cuentas de editor.</p>
+      <form id="authorize-form" class="compact-form"><div><label for="authorize-email">Correo del consultor</label><input id="authorize-email" type="email" maxlength="254" required></div><button class="primary" type="submit">Autorizar correo</button></form>
+      <p id="access-message" role="status" class="hint"></p><div id="authorized-list" class="settings-list"></div></section>
       <section class="form-panel settings-panel"><h2>Años y copias de seguridad</h2><p class="hint">Un año nuevo empieza sin permisos y copia los adjuntos activos al final del año seleccionado y sus motivos. Los años anteriores se conservan. No se puede sobrescribir un año existente.</p>
       <form id="year-create" class="compact-form"><div><label for="new-year">Año nuevo</label><input id="new-year" type="number" min="1900" max="9999" required></div><button type="submit" class="primary">Crear año vacío</button></form>
       <div class="backup-actions"><button id="download-year" class="secondary" type="button">Descargar archivo del año</button><div><label for="import-year">Recuperar un archivo anual (.json)</label><input id="import-year" type="file" accept=".json,application/json"></div></div><p class="hint">El archivo incluye la plantilla, los motivos y los permisos del año seleccionado. Puedes guardarlo vacío o descargar una copia cuando quieras. Conserva copias periódicas en un lugar seguro. Importar envía el contenido del archivo a la base de datos compartida.</p></section>

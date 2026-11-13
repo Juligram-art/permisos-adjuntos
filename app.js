@@ -1,6 +1,6 @@
 'use strict';
 const C=window.PermisosCore, $=id=>document.getElementById(id);
-let state,blocked=true,role='consultor',view='query',page=1,undo=null,saving=false,loading=false,publicMode=false,publicRequest=0,monthRequest=0;
+let state,blocked=true,role='consultor',view='query',page=1,undo=null,saving=false,loading=false,monthRequest=0,accessRequest=0,registering=false;
 const cloud=new window.AdjuntosCloud(window.ADJUNTOS_SUPABASE,sessionStorage,fetch.bind(window));
 function todayISO(){const p=new Intl.DateTimeFormat('en-CA',{timeZone:'Europe/Madrid',year:'numeric',month:'2-digit',day:'2-digit'}).formatToParts(new Date());return ['year','month','day'].map(t=>p.find(x=>x.type===t).value).join('-');}
 const thisYear=Number(todayISO().slice(0,4));let year=thisYear;
@@ -50,7 +50,6 @@ function updateSummary(){
   const n=[$('staff').value,days.length&&!message,$('reason').value].filter(Boolean).length;$('progress').textContent=`${n} de 3 campos completos`;$('progress-fill').style.width=`${n/3*100}%`;$('error').hidden=true;
 }
 function renderConsultation(){
-  if(publicMode){renderPublicConsultation();return;}
   const today=todayISO(),now=blocked?null:C.daily(state.years[today.slice(0,4)],today);
   $('today-heading').textContent=formatDate(today);$('today-count').textContent=now?now.working:'—';$('today-count').classList.toggle('low-staff',Boolean(now)&&now.working<=5);$('today-roster').textContent=now?`Plantilla activa de ${now.total} adjuntos`:'No hay datos disponibles para el año actual.';
   const day=$('consult-date').value,d=state.years[day.slice(0,4)],result=day&&!blocked?C.daily(d,day):null;
@@ -58,65 +57,39 @@ function renderConsultation(){
   $('absent-list').replaceChildren();if(result)result.absent.slice().sort((a,b)=>staffName(d,a.staffId).localeCompare(staffName(d,b.staffId),'es')).forEach(r=>{const li=document.createElement('li');li.textContent=`${staffName(d,r.staffId)} [${reasonCode(d,r.reasonId)}]`;$('absent-list').append(li);});
   $('no-absences').hidden=Boolean(result&&result.absent.length);$('no-absences').textContent=!day?'Selecciona una fecha.':!result?'No hay un archivo disponible para el año consultado.':'No hay permisos registrados para esta fecha.';
 }
-async function renderMonth(){
-  const request=++monthRequest,days=$('calendar-days');days.replaceChildren();
-  const anonymous=publicMode;
-  $('calendar-year-field').hidden=!anonymous;
-  if(!anonymous&&$('calendar-month').dataset.year!==String(year)){
+function renderMonth(){
+  const days=$('calendar-days');days.replaceChildren();
+  if($('calendar-month').dataset.year!==String(year)){
     $('calendar-month').value=year===thisYear?todayISO().slice(5,7):'01';
     $('calendar-month').dataset.year=String(year);
   }
-  const selectedYear=anonymous?Number($('calendar-year').value):year;
-  $('month-calendar').hidden=true;$('calendar-message').hidden=false;
-  if(!C.validYear(selectedYear)){$('calendar-heading').textContent='';$('calendar-message').textContent='Introduce un año entre 1900 y 9999.';return;}
-  const month=$('calendar-month').value,first=`${selectedYear}-${month}-01`,start=new Date(first+'T00:00:00Z');
+  const month=$('calendar-month').value,first=`${year}-${month}-01`;
+  const start=new Date(first+'T00:00:00Z');
   $('calendar-heading').textContent=new Intl.DateTimeFormat('es-ES',{month:'long',year:'numeric',timeZone:'UTC'}).format(start);
-  $('calendar-message').textContent=anonymous?'Consultando el mes…':'Actualiza los datos para consultar el mes.';
-  if(!anonymous&&blocked)return;
+  $('calendar-message').hidden=!blocked;
+  $('calendar-message').textContent='Actualiza los datos para consultar el mes.';
+  $('month-calendar').hidden=blocked;
+  if(blocked)return;
   const last=new Date(start);last.setUTCMonth(last.getUTCMonth()+1);last.setUTCDate(0);
-  const dates=C.datesInRange(first,last.toISOString().slice(0,10),true);
-  let results;
-  try{
-    if(anonymous){
-      $('sync-status').textContent='Consultando…';
-      results=[await cloud.publicDay(first)];
-      if(results[0]){
-        let cursor=1;
-        await Promise.all(Array.from({length:4},async()=>{
-          while(cursor<dates.length&&request===monthRequest){const i=cursor++;results[i]=await cloud.publicDay(dates[i]);}
-        }));
-      }else results=dates.map(()=>null);
-    }else results=dates.map(day=>C.daily(state.years[selectedYear],day));
-    if(request!==monthRequest||view!=='month'||anonymous!==publicMode)return;
-    $('calendar-message').hidden=results.some(Boolean);
-    $('calendar-message').textContent='No hay datos disponibles para el año consultado.';
-    $('month-calendar').hidden=false;
-    if(anonymous){$('sync-status').textContent='Actualizado a las '+new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});$('cloud-message').hidden=true;}
-  }catch(e){
-    if(request!==monthRequest||view!=='month')return;
-    $('calendar-message').textContent=e.message+' Pulsa Actualizar datos para volver a intentarlo.';
-    $('sync-status').textContent='Sin actualizar';return;
-  }
   const offset=(start.getUTCDay()+6)%7;
   for(let i=0;i<offset;i++){const blank=document.createElement('span');blank.setAttribute('aria-hidden','true');days.append(blank);}
-  dates.forEach((day,i)=>{
-    const result=results[i],button=document.createElement('button');
+  for(const day of C.datesInRange(first,last.toISOString().slice(0,10),true)){
+    const result=C.daily(data(),day),button=document.createElement('button');
     button.type='button';button.className='month-day';button.dataset.date=day;
-    button.classList.toggle('month-low',Boolean(result)&&result.working<=5);
+    button.classList.toggle('month-low',result.working<=5);
     button.classList.toggle('month-today',day===todayISO());
-    button.setAttribute('aria-label',`${formatDate(day)}: ${result?result.working+' adjuntos trabajando':'sin datos'}. Ver permisos.`);
+    button.setAttribute('aria-label',`${formatDate(day)}: ${result.working} adjuntos trabajando. Ver permisos.`);
     if(day===todayISO())button.setAttribute('aria-current','date');
     const date=document.createElement('span'),count=document.createElement('strong'),label=document.createElement('span');
     date.className='month-day-number';date.textContent=String(Number(day.slice(8)));
-    count.textContent=result?result.working:'—';label.className='month-day-label';label.textContent=result?'trabajando':'sin datos';
+    count.textContent=result.working;label.className='month-day-label';label.textContent='trabajando';
     button.append(date,count,label);
     button.addEventListener('click',()=>{
-      if((!publicMode&&blocked)||loading||saving)return;
+      if(blocked||loading||saving)return;
       $('consult-date').value=day;showView('query');$('consult-date').focus();
     });days.append(button);
-  });
+  }
 }
-$('calendar-year').addEventListener('input',renderMonth);
 $('calendar-month').addEventListener('change',renderMonth);
 for(let m=1;m<=12;m++)$('calendar-month').add(new Option(new Intl.DateTimeFormat('es-ES',{month:'long',timeZone:'UTC'}).format(new Date(Date.UTC(2026,m-1,1))),String(m).padStart(2,'0')));
 function renderList(){
@@ -147,7 +120,7 @@ function renderSettings(){
     f.addEventListener('submit',async e=>{e.preventDefault();if(!canEdit()||!f.reportValidity())return;const next=clone(data()),newCode=code.value.trim().toUpperCase();Object.assign(next.reasons.find(v=>v.id===r.id),{code:newCode,label:newCode==='EN'?'EN':label.value.trim(),active:active.checked});if(await changeYearData(next))notice('Motivo actualizado para este año.');});$('reason-settings').append(f);
   });
 }
-function showView(next){if(role==='consultor'&&!['query','month'].includes(next))next='query';publicRequest++;monthRequest++;view=next;for(const n of ['entry','query','month','list','settings']){$(n+'-view').hidden=n!==view;$(n+'-tab').hidden=role==='consultor'&&!['query','month'].includes(n);$(n+'-tab').setAttribute('aria-pressed',String(n===view));}document.title='Adjuntos · '+({entry:'Entrada_permisos',query:'Permisos',month:'Consulta mensual',list:'Listado',settings:'Configuración'}[view]);if(view==='query')renderConsultation();if(view==='list')renderList();if(view==='month')renderMonth();}
+function showView(next){if(role==='consultor'&&!['query','month'].includes(next))next='query';monthRequest++;accessRequest++;view=next;for(const n of ['entry','query','month','list','settings']){$(n+'-view').hidden=n!==view;$(n+'-tab').hidden=role==='consultor'&&!['query','month'].includes(n);$(n+'-tab').setAttribute('aria-pressed',String(n===view));}document.title='Adjuntos · '+({entry:'Entrada_permisos',query:'Permisos',month:'Consulta mensual',list:'Listado',settings:'Configuración'}[view]);if(view==='query')renderConsultation();if(view==='list')renderList();if(view==='month')renderMonth();if(view==='settings')renderAccess();}
 function renderAll(){renderOptions();renderList();renderSettings();updateSummary();showView(view);}
 for(const n of ['entry','query','month','list','settings'])$(n+'-tab').addEventListener('click',()=>showView(n));
 $('year-select').addEventListener('change',()=>{year=Number($('year-select').value);page=1;$('permission-form').reset();$('consult-date').value=year===thisYear?todayISO():`${year}-01-01`;renderAll();});
@@ -165,13 +138,13 @@ $('download-year').addEventListener('click',()=>{if(!canEdit())return;const blob
 $('import-year').addEventListener('change',async()=>{const file=$('import-year').files[0];if(!file||!canEdit())return;try{if(file.size>10*1024*1024)throw Error('El archivo supera los 10 MB.');const loaded=JSON.parse(await file.text());if(loaded.format!=='adjuntos-anual'||loaded.version!==2)throw Error('No es un archivo anual compatible.');const d=C.validateYear(loaded.data);delete d._revision;if(state.years[d.year])throw Error('Ese año ya existe. No se puede sobrescribir.');if(!canEdit())return;if(!confirm(`Se enviarán a Supabase ${d.records.length} permisos y la plantilla de ${d.year}. ¿Importar este archivo para compartirlo con el servicio?`))return;const next=clone(state);next.years[d.year]=d;if(await commit(next)){year=d.year;page=1;$('consult-date').value=`${year}-01-01`;renderAll();notice(`Archivo ${year} recuperado.`);}}catch(err){notice('No se ha importado. '+err.message,true);}finally{$('import-year').value='';}});
 
 function loginScreen(message='Entra con tu cuenta del servicio.') {
-  publicMode=false;publicRequest++;monthRequest++;blocked=true;role='consultor';undo=null;document.title='Adjuntos · Acceso';
+  monthRequest++;accessRequest++;blocked=true;role='consultor';undo=null;document.title='Adjuntos · Acceso';
   state={version:2,revision:0,years:{[thisYear]:C.defaultYear(thisYear)}};
   $('app-shell').hidden=true;$('empty-cloud').hidden=true;$('session-bar').hidden=true;
   $('auth-panel').hidden=false;$('auth-message').textContent=message;
   $('auth-forget').hidden=!cloud.session;$('login-password').value='';
   $('permission-form').reset();$('record-list').replaceChildren();$('absent-list').replaceChildren();
-  $('staff-settings').replaceChildren();$('reason-settings').replaceChildren();$('calendar-days').replaceChildren();
+  $('staff-settings').replaceChildren();$('reason-settings').replaceChildren();$('calendar-days').replaceChildren();$('authorized-list').replaceChildren();
   $('staff').replaceChildren();$('reason').replaceChildren();
   $('summary-staff').textContent='Sin seleccionar';$('summary-date').textContent='Sin seleccionar';
   $('summary-reason').textContent='Sin seleccionar';$('today-count').textContent='—';$('working-count').textContent='—';
@@ -184,8 +157,8 @@ async function loadCloud({quiet=false}={}) {
     const result=await cloud.load();
     const years=result.years;if(!years||typeof years!=='object'||Array.isArray(years))throw Error('Respuesta de datos no válida.');
     Object.values(years).forEach(C.validateYear);
-    publicMode=false;publicRequest++;role=result.role;blocked=false;undo=null;
-    $('year-toolbar').hidden=false;$('editor-access').hidden=true;$('logout').hidden=false;
+    role=result.role;blocked=false;undo=null;
+    $('year-toolbar').hidden=false;$('logout').hidden=false;
     $('session-label').textContent=`${result.email} · ${role==='editor'?'Editor':'Consultor'}`;
     $('auth-panel').hidden=true;$('session-bar').hidden=false;$('cloud-message').hidden=true;
     $('sync-status').textContent='Actualizado a las '+new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
@@ -207,16 +180,16 @@ async function loadCloud({quiet=false}={}) {
   }finally{loading=false;$('app-shell').inert=false;$('refresh-cloud').disabled=false;$('logout').disabled=false;}
 }
 $('login-form').addEventListener('submit',async e=>{
-  e.preventDefault();if(loading)return;
-  const button=e.submitter;button.disabled=true;$('back-public').disabled=true;$('auth-message').textContent='Entrando…';
+  e.preventDefault();if(loading||registering)return;
+  const button=e.submitter;button.disabled=true;$('signup-panel').inert=true;$('auth-message').textContent='Entrando…';
   try {await cloud.signIn($('login-email').value.trim(),$('login-password').value);$('login-password').value='';view='query';await loadCloud();}
-  catch(err){loginScreen(err.message);}finally{button.disabled=false;$('back-public').disabled=false;}
+  catch(err){loginScreen(err.message);}finally{button.disabled=false;$('signup-panel').inert=false;}
 });
 $('logout').addEventListener('click',async()=>{
-  if(saving||loading)return;const closing=cloud.signOut();publicScreen();await closing;
+  if(saving||loading)return;const closing=cloud.signOut();loginScreen();await closing;
 });
 $('auth-forget').addEventListener('click',async()=>{await cloud.signOut();loginScreen();});
-$('refresh-cloud').addEventListener('click',()=>publicMode?(view==='month'?renderMonth():renderPublicConsultation()):loadCloud());
+$('refresh-cloud').addEventListener('click',()=>loadCloud());
 $('initialize-cloud').addEventListener('click',async()=>{
   if(saving||loading||role!=='editor')return;
   saving=true;$('initialize-cloud').disabled=true;
@@ -226,47 +199,53 @@ $('initialize-cloud').addEventListener('click',async()=>{
 });
 // Keep consultation fresh. Never replace an editor's form while they are typing.
 setInterval(()=>{
-  if(publicMode&&!document.hidden){if(view==='month')renderMonth();else renderPublicConsultation();return;}
   if(cloud.session&&!document.hidden&&!$('app-shell').hidden&&['query','month'].includes(view))loadCloud({quiet:true});
 },60000);
 document.addEventListener('visibilitychange',()=>{
-  if(publicMode&&!document.hidden){if(view==='month')renderMonth();else renderPublicConsultation();return;}
   if(!document.hidden&&cloud.session&&['query','month'].includes(view))loadCloud({quiet:true});
 });
-function publicScreen(){
-  loginScreen();publicMode=true;view='query';$('calendar-year').value=thisYear;$('calendar-month').value=todayISO().slice(5,7);delete $('calendar-month').dataset.year;
-  $('auth-panel').hidden=true;$('session-bar').hidden=false;$('app-shell').hidden=false;
-  $('year-toolbar').hidden=true;$('logout').hidden=true;$('editor-access').hidden=false;
-  $('session-label').textContent='Consulta abierta · Solo lectura';$('cloud-message').hidden=true;
-  showView('query');
-}
-function paintPublicCounts(now,result,day){
-  $('today-heading').textContent=formatDate(todayISO());
-  $('today-count').textContent=now?now.working:'—';
-  $('today-count').classList.toggle('low-staff',Boolean(now)&&now.working<=5);
-  $('today-roster').textContent=now?`Plantilla activa de ${now.total} adjuntos`:'Sin datos disponibles para hoy.';
-  $('selected-date').textContent=day?formatDate(day):'Selecciona una fecha';
-  $('working-count').textContent=result?result.working:'—';
-  $('working-count').classList.toggle('low-staff',Boolean(result)&&result.working<=5);
-  $('calculation').textContent=result?`${result.total} adjuntos − ${result.absent.length} de permiso`:'';
-  $('absent-list').replaceChildren();
-  if(result)for(const person of result.absent){const li=document.createElement('li');li.textContent=`${person.name} [${person.code}]`;$('absent-list').append(li);}
-  $('no-absences').hidden=Boolean(result?.absent.length);
-  $('no-absences').textContent=!day?'Selecciona una fecha.':!result?'No hay datos disponibles para el año consultado.':'No hay permisos registrados para esta fecha.';
-}
-async function renderPublicConsultation(){
-  const request=++publicRequest,day=$('consult-date').value,today=todayISO();
-  paintPublicCounts(null,null,day);$('sync-status').textContent='Consultando…';
+// Registration never assigns a role: the server checks the verified email against the editor's list.
+$('signup-form').addEventListener('submit',async e=>{
+  e.preventDefault();if(loading||registering)return;
+  const password=$('signup-password').value;
+  if(password!==$('signup-repeat').value){$('signup-message').textContent='Las contraseñas no coinciden.';return;}
+  if(!$('signup-form').reportValidity())return;
+  registering=true;e.submitter.disabled=true;$('login-form').inert=true;
+  $('signup-message').textContent='Creando cuenta…';
   try{
-    const [now,result]=await Promise.all([cloud.publicDay(today),C.validDate(day)?(day===today?Promise.resolve(undefined):cloud.publicDay(day)):Promise.resolve(null)]);
-    if(!publicMode||request!==publicRequest)return;
-    paintPublicCounts(now,day===today?now:result,day);$('cloud-message').hidden=true;
-    $('sync-status').textContent='Actualizado a las '+new Date().toLocaleTimeString('es-ES',{hour:'2-digit',minute:'2-digit'});
-  }catch(e){
-    if(!publicMode||request!==publicRequest)return;
-    $('sync-status').textContent='Sin actualizar';$('cloud-message').hidden=false;$('cloud-message').textContent=e.message;
-  }
+    await cloud.signUp($('signup-email').value.trim(),password);
+    $('login-email').value=$('signup-email').value.trim();
+    $('signup-password').value='';$('signup-repeat').value='';
+    $('signup-message').textContent='Si el registro se ha completado, recibirás un correo para confirmar tu cuenta. Revisa también correo no deseado. Después entra con tu contraseña. Si ya tenías cuenta, utiliza Entrar. Solo los correos autorizados pueden consultar.';
+  }catch(err){$('signup-message').textContent=err.message;}
+  finally{registering=false;e.submitter.disabled=false;$('login-form').inert=false;}
+});
+async function renderAccess(){
+  const request=++accessRequest;$('authorized-list').replaceChildren();
+  if(role!=='editor'||blocked)return;
+  $('access-message').textContent='Cargando correos autorizados…';
+  try{
+    const rows=await cloud.authorizedEmails();
+    if(request!==accessRequest||role!=='editor'||view!=='settings')return;
+    const active=rows.filter(r=>r.activo);$('access-message').textContent=active.length?`${active.length} correos autorizados.`:'Todavía no has autorizado correos de consultores.';
+    for(const row of active){
+      const line=document.createElement('div');line.className='record';
+      const email=document.createElement('span');email.className='record-main';email.textContent=row.email;
+      const button=document.createElement('button');button.type='button';button.className='remove';button.textContent='Retirar acceso';button.setAttribute('aria-label','Retirar acceso de '+row.email);
+      button.addEventListener('click',async()=>{
+        if(!canEdit())return;button.disabled=true;
+        try{await cloud.authorizeEmail(row.email,false);await renderAccess();}
+        catch(err){$('access-message').textContent=err.message;button.disabled=false;}
+      });line.append(email,button);$('authorized-list').append(line);
+    }
+  }catch(err){if(request===accessRequest)$('access-message').textContent=err.message;}
 }
-$('editor-access').addEventListener('click',()=>{loginScreen();$('cloud-message').hidden=true;});
-$('back-public').addEventListener('click',()=>{if(!loading)publicScreen();});
-if(cloud.session)loadCloud();else publicScreen();
+$('authorize-form').addEventListener('submit',async e=>{
+  e.preventDefault();if(!canEdit())return;e.submitter.disabled=true;
+  try{await cloud.authorizeEmail($('authorize-email').value.trim(),true);$('authorize-form').reset();await renderAccess();}
+  catch(err){$('access-message').textContent=err.message;}
+  finally{e.submitter.disabled=false;}
+});
+// Confirmation links may carry Auth tokens in the fragment. Do not keep them in the URL.
+if(location.hash.includes('access_token=')||location.hash.includes('error_description='))history.replaceState(null,'',location.pathname+location.search);
+if(cloud.session)loadCloud();else loginScreen();
